@@ -1,0 +1,60 @@
+name: Publish to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to publish'
+        required: true
+        default: 'mcp-server'
+        type: choice
+        options:
+          - mcp-server
+          - cli
+          - core
+          - all
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build packages
+        run: |
+          cd packages/mcp-core && npm run build
+          cd ../cli && npm run build
+          cd ../../apps/mcp-server && npm run build
+
+      - name: Publish @vibetasks/core
+        if: inputs.package == 'core' || inputs.package == 'all'
+        working-directory: packages/mcp-core
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @vibetasks/cli
+        if: inputs.package == 'cli' || inputs.package == 'all'
+        working-directory: packages/cli
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @vibetasks/mcp-server
+        if: inputs.package == 'mcp-server' || inputs.package == 'all'
+        working-directory: apps/mcp-server
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

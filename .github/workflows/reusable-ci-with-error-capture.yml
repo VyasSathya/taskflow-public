@@ -1,0 +1,247 @@
+# Reusable workflow: CI with VibeTasks Error Capture
+# Use this workflow from other repositories to get automatic error tracking
+#
+# Usage in your workflow:
+#   jobs:
+#     ci:
+#       uses: your-org/VibeTasks/.github/workflows/reusable-ci-with-error-capture.yml@main
+#       with:
+#         node-version: '20'
+#         project-name: 'my-project'
+#       secrets:
+#         SUPABASE_URL: ${{ secrets.VIBETASKS_SUPABASE_URL }}
+#         SUPABASE_ANON_KEY: ${{ secrets.VIBETASKS_SUPABASE_ANON_KEY }}
+#         VIBETASKS_USER_ID: ${{ secrets.VIBETASKS_USER_ID }}
+
+name: Reusable CI with Error Capture
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version to use'
+        required: false
+        type: string
+        default: '20'
+      python-version:
+        description: 'Python version to use (if applicable)'
+        required: false
+        type: string
+        default: ''
+      project-name:
+        description: 'Project name for VibeTasks'
+        required: false
+        type: string
+        default: ''
+      working-directory:
+        description: 'Working directory for commands'
+        required: false
+        type: string
+        default: '.'
+      install-command:
+        description: 'Command to install dependencies'
+        required: false
+        type: string
+        default: 'npm ci'
+      build-command:
+        description: 'Command to build the project'
+        required: false
+        type: string
+        default: 'npm run build'
+      test-command:
+        description: 'Command to run tests'
+        required: false
+        type: string
+        default: 'npm test'
+      typecheck-command:
+        description: 'Command to run type checking'
+        required: false
+        type: string
+        default: 'npm run typecheck'
+      lint-command:
+        description: 'Command to run linting'
+        required: false
+        type: string
+        default: ''
+      skip-build:
+        description: 'Skip the build step'
+        required: false
+        type: boolean
+        default: false
+      skip-test:
+        description: 'Skip the test step'
+        required: false
+        type: boolean
+        default: false
+      skip-typecheck:
+        description: 'Skip the typecheck step'
+        required: false
+        type: boolean
+        default: false
+      priority:
+        description: 'Priority for created tasks'
+        required: false
+        type: string
+        default: 'high'
+      extra-tags:
+        description: 'Additional comma-separated tags'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      SUPABASE_URL:
+        required: true
+        description: 'Supabase project URL'
+      SUPABASE_ANON_KEY:
+        required: true
+        description: 'Supabase anon key'
+      SUPABASE_SERVICE_KEY:
+        required: false
+        description: 'Supabase service role key'
+      VIBETASKS_USER_ID:
+        required: true
+        description: 'VibeTasks user ID'
+    outputs:
+      task-id:
+        description: 'ID of created task (if any)'
+        value: ${{ jobs.ci.outputs.task_id }}
+      build-status:
+        description: 'Build step status'
+        value: ${{ jobs.ci.outputs.build_status }}
+      test-status:
+        description: 'Test step status'
+        value: ${{ jobs.ci.outputs.test_status }}
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    outputs:
+      task_id: ${{ steps.capture-error.outputs.task-id }}
+      build_status: ${{ steps.build.outcome }}
+      test_status: ${{ steps.test.outcome }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node.js setup
+      - name: Setup Node.js
+        if: inputs.node-version != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      # Python setup
+      - name: Setup Python
+        if: inputs.python-version != ''
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: 'pip'
+
+      # Install dependencies
+      - name: Install dependencies
+        id: install
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.install-command }}
+        continue-on-error: true
+
+      # Lint (optional)
+      - name: Lint
+        id: lint
+        if: inputs.lint-command != '' && steps.install.outcome == 'success'
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.lint-command }}
+        continue-on-error: true
+
+      # Type check
+      - name: Type check
+        id: typecheck
+        if: inputs.skip-typecheck == false && steps.install.outcome == 'success'
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.typecheck-command }}
+        continue-on-error: true
+
+      # Build
+      - name: Build
+        id: build
+        if: inputs.skip-build == false && steps.install.outcome == 'success'
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.build-command }}
+        continue-on-error: true
+
+      # Test
+      - name: Test
+        id: test
+        if: inputs.skip-test == false && steps.install.outcome == 'success'
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.test-command }}
+        continue-on-error: true
+
+      # Aggregate results
+      - name: Check for failures
+        id: check-failures
+        run: |
+          FAILED_STEPS=""
+          ERROR_CONTEXT=""
+          
+          if [ "${{ steps.install.outcome }}" == "failure" ]; then
+            FAILED_STEPS="${FAILED_STEPS}install,"
+            ERROR_CONTEXT="${ERROR_CONTEXT}Dependency installation failed. "
+          fi
+          
+          if [ "${{ steps.lint.outcome }}" == "failure" ]; then
+            FAILED_STEPS="${FAILED_STEPS}lint,"
+            ERROR_CONTEXT="${ERROR_CONTEXT}Linting failed. "
+          fi
+          
+          if [ "${{ steps.typecheck.outcome }}" == "failure" ]; then
+            FAILED_STEPS="${FAILED_STEPS}typecheck,"
+            ERROR_CONTEXT="${ERROR_CONTEXT}Type checking failed. "
+          fi
+          
+          if [ "${{ steps.build.outcome }}" == "failure" ]; then
+            FAILED_STEPS="${FAILED_STEPS}build,"
+            ERROR_CONTEXT="${ERROR_CONTEXT}Build failed. "
+          fi
+          
+          if [ "${{ steps.test.outcome }}" == "failure" ]; then
+            FAILED_STEPS="${FAILED_STEPS}test,"
+            ERROR_CONTEXT="${ERROR_CONTEXT}Tests failed. "
+          fi
+          
+          if [ -n "$FAILED_STEPS" ]; then
+            echo "failed_steps=${FAILED_STEPS}" >> $GITHUB_OUTPUT
+            echo "error_context=${ERROR_CONTEXT}" >> $GITHUB_OUTPUT
+            echo "has_failures=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_failures=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Capture error in VibeTasks
+      - name: Capture error in VibeTasks
+        id: capture-error
+        if: steps.check-failures.outputs.has_failures == 'true'
+        uses: ./.github/actions/vibetasks-error
+        with:
+          supabase-url: ${{ secrets.SUPABASE_URL }}
+          supabase-anon-key: ${{ secrets.SUPABASE_ANON_KEY }}
+          supabase-service-key: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          user-id: ${{ secrets.VIBETASKS_USER_ID }}
+          project-name: ${{ inputs.project-name }}
+          priority: ${{ inputs.priority }}
+          tags: 'ci,automated,${{ steps.check-failures.outputs.failed_steps }}${{ inputs.extra-tags }}'
+          error-context: ${{ steps.check-failures.outputs.error_context }}
+          comment-on-pr: 'true'
+          github-token: ${{ github.token }}
+
+      # Fail the job
+      - name: Report status
+        if: steps.check-failures.outputs.has_failures == 'true'
+        run: |
+          echo "::error::CI failed. Failed steps: ${{ steps.check-failures.outputs.failed_steps }}"
+          echo ""
+          echo "A VibeTasks task has been created to track this issue."
+          echo "Task ID: ${{ steps.capture-error.outputs.task-id }}"
+          exit 1

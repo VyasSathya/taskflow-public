@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "VibeTasks Error Capture",
+  "description": "Capture DevTools console errors and send them to VibeTasks for tracking",
+  "version": "1.0.0",
+  "author": "VibeTasks",
+  
+  "permissions": [
+    "contextMenus",
+    "storage",
+    "activeTab",
+    "notifications"
+  ],
+  
+  "host_permissions": [
+    "https://your-project-ref.supabase.co/*",
+    "https://vibetasks.vercel.app/*"
+  ],
+  
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "VibeTasks Error Capture"
+  },
+  
+  "devtools_page": "src/devtools.html",
+  
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://vibetasks.vercel.app/cli-auth*",
+        "http://localhost:*/cli-auth*"
+      ],
+      "js": ["src/auth-listener.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  
+  "web_accessible_resources": [
+    {
+      "resources": ["src/toast.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

@@ -1,0 +1,150 @@
+diff --git a/node_modules/react-native/React/Base/RCTUtils.mm b/node_modules/react-native/React/Base/RCTUtils.mm
+index af16d36..15617da 100644
+--- a/node_modules/react-native/React/Base/RCTUtils.mm
++++ b/node_modules/react-native/React/Base/RCTUtils.mm
+@@ -394,7 +394,16 @@ CGFloat RCTFontSizeMultiplier(void)
+     };
+   });
+ 
+-  return mapping[RCTSharedApplication().preferredContentSizeCategory].floatValue;
++  NSString *contentSizeCategory = nil;
++  @try {
++    contentSizeCategory = RCTSharedApplication().preferredContentSizeCategory;
++  } @catch (NSException *exception) {
++    // If preferredContentSizeCategory throws, use default
++    return 1.0;
++  }
++
++  NSNumber *multiplier = mapping[contentSizeCategory];
++  return multiplier ? multiplier.floatValue : 1.0;
+ }
+ 
+ UIDeviceOrientation RCTDeviceOrientation(void)
+@@ -622,24 +631,45 @@ BOOL RCTRunningInAppExtension(void)
+     return nil;
+   }
+ 
+-  NSSet<UIScene *> *connectedScenes = RCTSharedApplication().connectedScenes;
++  NSSet<UIScene *> *connectedScenes = nil;
++  @try {
++    connectedScenes = RCTSharedApplication().connectedScenes;
++  } @catch (NSException *exception) {
++    // If connectedScenes throws, fallback to windows
++    return RCTSharedApplication().windows.firstObject;
++  }
++
++  if (connectedScenes == nil || connectedScenes.count == 0) {
++    // Fallback for when connectedScenes is not available
++    return RCTSharedApplication().windows.firstObject;
++  }
+ 
+-  UIScene *foregroundActiveScene;
+-  UIScene *foregroundInactiveScene;
++  UIScene *foregroundActiveScene = nil;
++  UIScene *foregroundInactiveScene = nil;
+ 
+   for (UIScene *scene in connectedScenes) {
+-    if (![scene isKindOfClass:[UIWindowScene class]]) {
++    // iOS 26 compatibility: Check for nil scene
++    if (scene == nil) {
+       continue;
+     }
+ 
+-    if (scene.activationState == UISceneActivationStateForegroundActive) {
+-      foregroundActiveScene = scene;
+-      break;
++    if (![scene isKindOfClass:[UIWindowScene class]]) {
++      continue;
+     }
+ 
+-    if (!foregroundInactiveScene && scene.activationState == UISceneActivationStateForegroundInactive) {
+-      foregroundInactiveScene = scene;
+-      // no break, we can have the active scene later in the set.
++    @try {
++      if (scene.activationState == UISceneActivationStateForegroundActive) {
++        foregroundActiveScene = scene;
++        break;
++      }
++
++      if (!foregroundInactiveScene && scene.activationState == UISceneActivationStateForegroundInactive) {
++        foregroundInactiveScene = scene;
++        // no break, we can have the active scene later in the set.
++      }
++    } @catch (NSException *exception) {
++      // iOS 26: Scene might be deallocated, skip it
++      continue;
+     }
+   }
+ 
+diff --git a/node_modules/react-native/React/CoreModules/RCTAppearance.mm b/node_modules/react-native/React/CoreModules/RCTAppearance.mm
+index d25d9f6..b4f8c25 100644
+--- a/node_modules/react-native/React/CoreModules/RCTAppearance.mm
++++ b/node_modules/react-native/React/CoreModules/RCTAppearance.mm
+@@ -113,8 +113,19 @@ - (dispatch_queue_t)methodQueue
+ {
+   UIUserInterfaceStyle userInterfaceStyle = [RCTConvert UIUserInterfaceStyle:style];
+   NSMutableArray<UIWindow *> *windows = [NSMutableArray new];
+-  for (UIWindowScene *scene in RCTSharedApplication().connectedScenes) {
+-    [windows addObjectsFromArray:scene.windows];
++  NSSet<UIScene *> *connectedScenes = nil;
++  @try {
++    connectedScenes = RCTSharedApplication().connectedScenes;
++  } @catch (NSException *exception) {
++    // If connectedScenes throws, use fallback
++    windows = [NSMutableArray arrayWithArray:RCTSharedApplication().windows];
++    connectedScenes = nil;
++  }
++
++  if (connectedScenes) {
++    for (UIWindowScene *scene in connectedScenes) {
++      [windows addObjectsFromArray:scene.windows];
++    }
+   }
+ 
+   for (UIWindow *window in windows) {
+diff --git a/node_modules/react-native/React/CoreModules/RCTDevMenu.mm b/node_modules/react-native/React/CoreModules/RCTDevMenu.mm
+index 3918ea0..9cb0738 100644
+--- a/node_modules/react-native/React/CoreModules/RCTDevMenu.mm
++++ b/node_modules/react-native/React/CoreModules/RCTDevMenu.mm
+@@ -196,8 +196,19 @@ - (void)showOnShake
+ {
+   if ([((RCTDevSettings *)[_moduleRegistry moduleForName:"DevSettings"]) isShakeToShowDevMenuEnabled]) {
+     NSMutableArray<UIWindow *> *windows = [NSMutableArray new];
+-    for (UIWindowScene *scene in RCTSharedApplication().connectedScenes) {
+-      [windows addObjectsFromArray:scene.windows];
++    NSSet<UIScene *> *connectedScenes = nil;
++    @try {
++      connectedScenes = RCTSharedApplication().connectedScenes;
++    } @catch (NSException *exception) {
++      // If connectedScenes throws, use fallback
++      windows = [NSMutableArray arrayWithArray:RCTSharedApplication().windows];
++      connectedScenes = nil;
++    }
++
++    if (connectedScenes) {
++      for (UIWindowScene *scene in connectedScenes) {
++        [windows addObjectsFromArray:scene.windows];
++      }
+     }
+     for (UIWindow *window in windows) {
+       NSString *recursiveDescription = [window valueForKey:@"recursiveDescription"];
+diff --git a/node_modules/react-native/ReactCommon/react/runtime/ReactInstance.cpp b/node_modules/react-native/ReactCommon/react/runtime/ReactInstance.cpp
+index 29d2910..aeb30fd 100644
+--- a/node_modules/react-native/ReactCommon/react/runtime/ReactInstance.cpp
++++ b/node_modules/react-native/ReactCommon/react/runtime/ReactInstance.cpp
+@@ -399,7 +399,14 @@ void ReactInstance::initializeRuntime(
+     RuntimeSchedulerBinding::createAndInstallIfNeeded(
+         runtime, runtimeScheduler_);
+ 
+-    runtime_->unstable_initializeOnJsThread();
++    try {
++      runtime_->unstable_initializeOnJsThread();
++    } catch (const std::exception& e) {
++      // iOS 26 compatibility: Hermes may throw during initialization
++      // Continue without crashing - the runtime can still function
++    } catch (...) {
++      // Catch any other exceptions
++    }
+ 
+     defineReactInstanceFlags(runtime, options);
+ 

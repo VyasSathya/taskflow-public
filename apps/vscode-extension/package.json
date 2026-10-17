@@ -1,0 +1,156 @@
+{
+  "name": "vibetasks",
+  "displayName": "VibeTasks - Error Capture",
+  "description": "Capture VS Code errors and diagnostics as VibeTasks tasks with a single shortcut",
+  "version": "0.1.0",
+  "publisher": "vibetasks",
+  "author": "Vyas",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vyassathya/vibetasks.git",
+    "directory": "apps/vscode-extension"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Debuggers"
+  ],
+  "keywords": [
+    "vibetasks",
+    "vibe",
+    "vibecoding",
+    "error-tracking",
+    "task-management",
+    "productivity",
+    "diagnostics"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "vibetasks.captureError",
+        "title": "VibeTasks: Capture Current Error"
+      },
+      {
+        "command": "vibetasks.captureAllErrors",
+        "title": "VibeTasks: Capture All Errors in File"
+      },
+      {
+        "command": "vibetasks.captureSelectedErrors",
+        "title": "VibeTasks: Select Errors to Capture"
+      },
+      {
+        "command": "vibetasks.login",
+        "title": "VibeTasks: Login"
+      },
+      {
+        "command": "vibetasks.logout",
+        "title": "VibeTasks: Logout"
+      },
+      {
+        "command": "vibetasks.showStatus",
+        "title": "VibeTasks: Show Status"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "vibetasks.captureError",
+        "key": "ctrl+shift+e",
+        "mac": "cmd+shift+e",
+        "when": "editorFocus"
+      },
+      {
+        "command": "vibetasks.captureAllErrors",
+        "key": "ctrl+shift+alt+e",
+        "mac": "cmd+shift+alt+e",
+        "when": "editorFocus"
+      }
+    ],
+    "configuration": {
+      "title": "VibeTasks",
+      "properties": {
+        "vibetasks.supabaseUrl": {
+          "type": "string",
+          "default": "https://your-project-ref.supabase.co",
+          "description": "Supabase project URL"
+        },
+        "vibetasks.supabaseAnonKey": {
+          "type": "string",
+          "default": "your-supabase-anon-key",
+          "description": "Supabase anonymous key"
+        },
+        "vibetasks.defaultProject": {
+          "type": "string",
+          "default": "",
+          "description": "Default project tag for captured errors (auto-detected from workspace if empty)"
+        },
+        "vibetasks.defaultPriority": {
+          "type": "string",
+          "enum": ["none", "low", "medium", "high"],
+          "default": "high",
+          "description": "Default priority for captured error tasks"
+        },
+        "vibetasks.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show error count in status bar"
+        },
+        "vibetasks.includeWarnings": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include warnings when capturing all errors"
+        }
+      }
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "vibetasks.captureError",
+          "group": "vibetasks@1",
+          "when": "editorHasSelection || editorTextFocus"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "vibetasks.captureError",
+          "when": "editorIsOpen"
+        },
+        {
+          "command": "vibetasks.captureAllErrors",
+          "when": "editorIsOpen"
+        },
+        {
+          "command": "vibetasks.captureSelectedErrors",
+          "when": "editorIsOpen"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
+    "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+    "package": "vsce package",
+    "publish": "vsce publish",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "esbuild": "^0.19.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  }
+}

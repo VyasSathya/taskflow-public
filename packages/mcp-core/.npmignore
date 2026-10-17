@@ -1,0 +1,32 @@
+# Source files (but include dist/ and types)
+src/
+*.ts
+!dist/**/*.d.ts
+tsconfig.json
+
+# Tests
+__tests__/
+*.test.ts
+*.spec.ts
+
+# Development
+node_modules/
+.env
+.env.*
+
+# Build artifacts
+*.tsbuildinfo
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

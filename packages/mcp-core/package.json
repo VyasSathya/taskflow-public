@@ -1,0 +1,48 @@
+{
+  "name": "@vibetasks/core",
+  "version": "0.5.3",
+  "description": "Shared core logic for VibeTasks MCP server and CLI - authentication, task operations, and config management",
+  "author": "Vyas",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "vibetasks",
+    "vibe",
+    "vibecoding",
+    "mcp",
+    "task-management",
+    "supabase",
+    "authentication",
+    "productivity"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vyassathya/vibetasks.git",
+    "directory": "packages/mcp-core"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup src/index.ts --format esm --clean --dts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vibetasks/shared": "*",
+    "@supabase/supabase-js": "^2.39.0",
+    "keytar": "^7.9.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.3"
+  }
+}

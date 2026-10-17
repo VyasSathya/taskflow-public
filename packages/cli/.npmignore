@@ -1,0 +1,38 @@
+# Source files
+src/
+bin/
+*.ts
+tsconfig.json
+.turbo
+
+# Tests
+__tests__/
+*.test.ts
+*.spec.ts
+
+# Development
+node_modules/
+.env
+.env.*
+
+# Build artifacts
+*.tsbuildinfo
+
+# Documentation (included via README.md)
+docs/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Only include dist/ and package.json

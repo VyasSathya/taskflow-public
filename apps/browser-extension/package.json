@@ -1,0 +1,23 @@
+{
+  "name": "@vibetasks/browser-extension",
+  "version": "1.0.0",
+  "description": "VibeTasks Browser Extension for error capture",
+  "private": true,
+  "scripts": {
+    "icons": "node scripts/create-placeholder-icons.js",
+    "build:chrome": "echo 'No build needed - extension uses vanilla JS'",
+    "build:firefox": "echo 'Copy manifest.firefox.json to manifest.json for Firefox'",
+    "zip:chrome": "cd .. && zip -r browser-extension-chrome.zip browser-extension -x '*.git*' -x '*node_modules*' -x '*manifest.firefox.json*'",
+    "zip:firefox": "cp manifest.firefox.json manifest.json.bak && cp manifest.json manifest.chrome.json && cp manifest.firefox.json manifest.json && cd .. && zip -r browser-extension-firefox.zip browser-extension -x '*.git*' -x '*node_modules*' -x '*manifest.chrome.json*' -x '*manifest.firefox.json*' && cd browser-extension && mv manifest.chrome.json manifest.json && rm manifest.json.bak"
+  },
+  "keywords": [
+    "browser-extension",
+    "chrome-extension",
+    "firefox-extension",
+    "devtools",
+    "error-capture",
+    "vibetasks"
+  ],
+  "author": "VibeTasks",
+  "license": "MIT"
+}

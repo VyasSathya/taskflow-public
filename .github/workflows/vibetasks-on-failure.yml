@@ -1,0 +1,80 @@
+name: CI with VibeTasks Error Capture
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        id: typecheck
+        run: npm run typecheck
+        continue-on-error: true
+
+      - name: Build
+        id: build
+        run: npm run build:web
+        continue-on-error: true
+
+      - name: Run tests
+        id: test
+        run: npm test --if-present
+        continue-on-error: true
+
+      - name: Check for failures
+        id: check-failures
+        run: |
+          FAILED=""
+          if [ "${{ steps.typecheck.outcome }}" == "failure" ]; then
+            FAILED="${FAILED}typecheck,"
+          fi
+          if [ "${{ steps.build.outcome }}" == "failure" ]; then
+            FAILED="${FAILED}build,"
+          fi
+          if [ "${{ steps.test.outcome }}" == "failure" ]; then
+            FAILED="${FAILED}test,"
+          fi
+          
+          if [ -n "$FAILED" ]; then
+            echo "failed_steps=${FAILED}" >> $GITHUB_OUTPUT
+            echo "has_failures=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_failures=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Capture error in VibeTasks
+        if: steps.check-failures.outputs.has_failures == 'true'
+        uses: ./.github/actions/vibetasks-error
+        with:
+          supabase-url: ${{ secrets.SUPABASE_URL }}
+          supabase-anon-key: ${{ secrets.SUPABASE_ANON_KEY }}
+          supabase-service-key: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          user-id: ${{ secrets.VIBETASKS_USER_ID }}
+          project-name: 'vibetasks'
+          priority: 'high'
+          tags: 'ci,automated,${{ steps.check-failures.outputs.failed_steps }}'
+          error-context: 'Failed steps: ${{ steps.check-failures.outputs.failed_steps }}'
+          comment-on-pr: 'true'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fail the job if there were errors
+        if: steps.check-failures.outputs.has_failures == 'true'
+        run: |
+          echo "CI failed. A VibeTasks task has been created to track this issue."
+          exit 1

@@ -1,0 +1,38 @@
+{
+  "mcpServers": {
+    "taskflow": {
+      "command": "node",
+      "args": [
+        "REPLACE_WITH_PATH_TO_DIST/index.js"
+      ],
+      "env": {
+        "TASKFLOW_SUPABASE_URL": "https://your-project-ref.supabase.co",
+        "TASKFLOW_SUPABASE_KEY": "REPLACE_WITH_ANON_KEY"
+      }
+    }
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node",
+        "args": ["REPLACE_WITH_PATH_TO_DIST/index.js"],
+        "env": {
+          "CLAUDE_HOOK_TYPE": "SessionStart",
+          "TASKFLOW_SUPABASE_URL": "https://your-project-ref.supabase.co"
+        }
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node",
+        "args": ["REPLACE_WITH_PATH_TO_DIST/index.js"],
+        "env": {
+          "CLAUDE_HOOK_TYPE": "SessionEnd",
+          "TASKFLOW_SUPABASE_URL": "https://your-project-ref.supabase.co"
+        }
+      }
+    ]
+  }
+}

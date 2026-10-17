@@ -1,0 +1,8 @@
+{
+  "name": "vibetasks-apps",
+  "private": true,
+  "dependencies": {
+    "@tailwindcss/postcss": "4.0.9",
+    "tailwindcss": "4.0.9"
+  }
+}

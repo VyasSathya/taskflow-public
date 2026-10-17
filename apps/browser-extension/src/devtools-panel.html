@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VibeTasks</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 12px;
+      padding: 12px;
+      background: #1e1e1e;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+    
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #333;
+    }
+    
+    .logo {
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: white;
+    }
+    
+    h1 {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    
+    .section {
+      margin-bottom: 16px;
+    }
+    
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    
+    .auth-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #2d2d2d;
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+    }
+    
+    .status-dot.connected {
+      background: #10b981;
+    }
+    
+    .error-input {
+      width: 100%;
+      min-height: 120px;
+      padding: 10px;
+      background: #2d2d2d;
+      border: 1px solid #404040;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 11px;
+      resize: vertical;
+      margin-bottom: 8px;
+    }
+    
+    .error-input:focus {
+      outline: none;
+      border-color: #6366f1;
+    }
+    
+    .error-input::placeholder {
+      color: #666;
+    }
+    
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      opacity: 0.9;
+    }
+    
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .btn-secondary {
+      background: #2d2d2d;
+      color: #e0e0e0;
+      border: 1px solid #404040;
+    }
+    
+    .btn-secondary:hover {
+      background: #3d3d3d;
+    }
+    
+    .btn-group {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .input-group {
+      margin-bottom: 10px;
+    }
+    
+    .input-group label {
+      display: block;
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    
+    .input-group input,
+    .input-group select {
+      width: 100%;
+      padding: 8px 10px;
+      background: #2d2d2d;
+      border: 1px solid #404040;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 12px;
+    }
+    
+    .input-group input:focus,
+    .input-group select:focus {
+      outline: none;
+      border-color: #6366f1;
+    }
+    
+    .message {
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-top: 12px;
+    }
+    
+    .message.success {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    
+    .message.error {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    
+    .hint {
+      font-size: 11px;
+      color: #666;
+      margin-top: 8px;
+    }
+    
+    .preview {
+      padding: 8px 10px;
+      background: #252525;
+      border-radius: 4px;
+      font-size: 11px;
+      color: #888;
+      border-left: 3px solid #6366f1;
+      margin-top: 8px;
+    }
+    
+    .preview-title {
+      color: #e0e0e0;
+      font-weight: 500;
+    }
+    
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">V</div>
+    <h1>VibeTasks</h1>
+  </div>
+  
+  <div id="auth-section" class="section">
+    <div class="auth-status">
+      <div id="status-dot" class="status-dot"></div>
+      <span id="auth-text">Not connected</span>
+    </div>
+  </div>
+  
+  <div id="capture-section" class="section hidden">
+    <div class="section-title">Capture Error</div>
+    
+    <textarea 
+      id="error-input" 
+      class="error-input" 
+      placeholder="Paste error message or stack trace here...
+
+Tip: Select error text in Console, right-click, and choose 'Send to VibeTasks'"
+    ></textarea>
+    
+    <div class="input-group">
+      <label>Project (optional)</label>
+      <input type="text" id="project-input" placeholder="Auto-detect from page" />
+    </div>
+    
+    <div class="input-group">
+      <label>Priority</label>
+      <select id="priority-select">
+        <option value="high" selected>High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+      </select>
+    </div>
+    
+    <div id="preview" class="preview hidden">
+      <div class="preview-title" id="preview-title"></div>
+    </div>
+    
+    <div class="btn-group" style="margin-top: 12px;">
+      <button id="send-btn" class="btn btn-primary" disabled>
+        <span>Send to VibeTasks</span>
+      </button>
+      <button id="clear-btn" class="btn btn-secondary">
+        Clear
+      </button>
+    </div>
+    
+    <div id="message" class="message hidden"></div>
+    
+    <p class="hint">
+      Errors are captured with high priority and full stack trace for quick debugging.
+    </p>
+  </div>
+  
+  <div id="login-section" class="section hidden">
+    <p style="margin-bottom: 12px; color: #888;">
+      Connect to your VibeTasks account to capture errors.
+    </p>
+    <button id="login-btn" class="btn btn-primary">
+      Open VibeTasks to Log In
+    </button>
+  </div>
+  
+  <script src="devtools-panel.js" type="module"></script>
+</body>
+</html>

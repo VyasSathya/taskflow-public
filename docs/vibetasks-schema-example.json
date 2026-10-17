@@ -1,0 +1,178 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "a1b2c3d4-e5f6-4789-abcd-ef0123456789",
+      "title": "Add dark mode to settings page",
+      "status": "vibing",
+      "notes": "Users have been requesting dark mode. Should match the system preference by default but allow manual override.",
+      "contextNotes": "Theme toggle component is done. Need to wire up the persistence layer and test on mobile. Left off at settings-store.ts line 45.",
+      "subtasks": [
+        {
+          "id": "sub-001",
+          "title": "Create theme toggle component",
+          "completed": true
+        },
+        {
+          "id": "sub-002",
+          "title": "Add theme persistence to store",
+          "completed": false
+        },
+        {
+          "id": "sub-003",
+          "title": "Test on iOS and Android",
+          "completed": false
+        }
+      ],
+      "attachments": [
+        {
+          "id": "att-001",
+          "name": "dark-mode-mockup.png",
+          "path": "./docs/mockups/dark-mode-mockup.png"
+        }
+      ],
+      "project": "vibetasks",
+      "createdAt": "2026-01-08T10:30:00.000Z",
+      "updatedAt": "2026-01-09T14:22:00.000Z"
+    },
+    {
+      "id": "b2c3d4e5-f6a7-4890-bcde-f01234567890",
+      "title": "Fix mobile keyboard overlap bug",
+      "status": "todo",
+      "notes": "On Android, the keyboard covers the input field when adding a new task. Need to use KeyboardAvoidingView or similar.",
+      "subtasks": [],
+      "attachments": [
+        {
+          "id": "att-002",
+          "name": "keyboard-bug-screenshot.jpg",
+          "path": "./bugs/keyboard-bug-screenshot.jpg"
+        }
+      ],
+      "project": "vibetasks",
+      "createdAt": "2026-01-09T09:15:00.000Z",
+      "updatedAt": "2026-01-09T09:15:00.000Z"
+    },
+    {
+      "id": "c3d4e5f6-a7b8-4901-cdef-012345678901",
+      "title": "Write API documentation",
+      "status": "todo",
+      "subtasks": [
+        {
+          "id": "sub-004",
+          "title": "Document task endpoints",
+          "completed": false
+        },
+        {
+          "id": "sub-005",
+          "title": "Document project endpoints",
+          "completed": false
+        },
+        {
+          "id": "sub-006",
+          "title": "Add code examples",
+          "completed": false
+        }
+      ],
+      "attachments": [],
+      "project": "vibetasks",
+      "createdAt": "2026-01-07T16:45:00.000Z",
+      "updatedAt": "2026-01-07T16:45:00.000Z"
+    },
+    {
+      "id": "d4e5f6a7-b8c9-4012-defa-123456789012",
+      "title": "Set up CI/CD pipeline",
+      "status": "done",
+      "notes": "GitHub Actions for automated testing and deployment.",
+      "contextNotes": "All done! Pipeline runs on push to main. Deploys to Vercel automatically.",
+      "subtasks": [
+        {
+          "id": "sub-007",
+          "title": "Create GitHub Actions workflow",
+          "completed": true
+        },
+        {
+          "id": "sub-008",
+          "title": "Add test step",
+          "completed": true
+        },
+        {
+          "id": "sub-009",
+          "title": "Configure Vercel deployment",
+          "completed": true
+        }
+      ],
+      "attachments": [],
+      "project": "vibetasks",
+      "createdAt": "2026-01-05T11:00:00.000Z",
+      "updatedAt": "2026-01-06T18:30:00.000Z"
+    },
+    {
+      "id": "e5f6a7b8-c9d0-4123-efab-234567890123",
+      "title": "Research competitor features",
+      "status": "vibing",
+      "notes": "Look at Todoist, Linear, and Notion for inspiration.",
+      "contextNotes": "Finished Todoist analysis. Linear is next - their keyboard shortcuts are really good.",
+      "subtasks": [
+        {
+          "id": "sub-010",
+          "title": "Analyze Todoist",
+          "completed": true
+        },
+        {
+          "id": "sub-011",
+          "title": "Analyze Linear",
+          "completed": false
+        },
+        {
+          "id": "sub-012",
+          "title": "Analyze Notion",
+          "completed": false
+        }
+      ],
+      "attachments": [],
+      "createdAt": "2026-01-08T08:00:00.000Z",
+      "updatedAt": "2026-01-09T11:45:00.000Z"
+    },
+    {
+      "id": "f6a7b8c9-d0e1-4234-fabc-345678901234",
+      "title": "Update landing page copy",
+      "status": "todo",
+      "project": "streamfinder",
+      "subtasks": [],
+      "attachments": [],
+      "createdAt": "2026-01-09T13:00:00.000Z",
+      "updatedAt": "2026-01-09T13:00:00.000Z"
+    }
+  ],
+  "projects": [
+    {
+      "id": "vibetasks",
+      "name": "VibeTasks",
+      "path": "/Users/dev/projects/vibetasks",
+      "gitRemote": "https://github.com/username/vibetasks.git",
+      "gitBranch": "main",
+      "detectedAt": "2026-01-05T10:00:00.000Z"
+    },
+    {
+      "id": "streamfinder",
+      "name": "StreamFinder",
+      "path": "/Users/dev/projects/streamfinder",
+      "gitRemote": "https://github.com/username/streamfinder.git",
+      "gitBranch": "feature/search",
+      "detectedAt": "2026-01-06T14:30:00.000Z"
+    },
+    {
+      "id": "personal-site",
+      "name": "Personal Site",
+      "path": "/Users/dev/projects/personal-site",
+      "detectedAt": "2026-01-07T09:00:00.000Z"
+    }
+  ],
+  "settings": {
+    "wipLimit": 3,
+    "autoDetectProjects": true,
+    "defaultProject": "vibetasks",
+    "archiveAfterDays": 7
+  },
+  "lastModified": "2026-01-09T14:22:00.000Z"
+}

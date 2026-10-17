@@ -1,0 +1,422 @@
+name: 'VibeTasks Error Capture'
+description: 'Automatically create VibeTasks tasks when CI/CD fails. Captures build/test output and creates trackable tasks.'
+author: 'VibeTasks'
+
+branding:
+  icon: 'alert-circle'
+  color: 'red'
+
+inputs:
+  supabase-url:
+    description: 'Supabase project URL (e.g., https://xxx.supabase.co)'
+    required: true
+  supabase-anon-key:
+    description: 'Supabase anon/public key for API access'
+    required: true
+  supabase-service-key:
+    description: 'Supabase service role key (optional, for elevated permissions)'
+    required: false
+  user-id:
+    description: 'VibeTasks user ID to assign the task to'
+    required: true
+  project-name:
+    description: 'Project name for the task (defaults to repository name)'
+    required: false
+    default: ''
+  priority:
+    description: 'Task priority: none, low, medium, high'
+    required: false
+    default: 'high'
+  tags:
+    description: 'Comma-separated list of tags (e.g., "ci,bug,automated")'
+    required: false
+    default: 'ci,automated'
+  error-context:
+    description: 'Additional context about what failed'
+    required: false
+    default: ''
+  max-log-lines:
+    description: 'Maximum number of log lines to include in task notes'
+    required: false
+    default: '100'
+  comment-on-pr:
+    description: 'Whether to comment on PR with task link (true/false)'
+    required: false
+    default: 'true'
+  github-token:
+    description: 'GitHub token for PR comments (defaults to GITHUB_TOKEN)'
+    required: false
+    default: ${{ github.token }}
+  failure-types:
+    description: 'Comma-separated failure types to detect: build,test,lint,typecheck,all'
+    required: false
+    default: 'all'
+
+outputs:
+  task-id:
+    description: 'ID of the created VibeTasks task'
+    value: ${{ steps.create-task.outputs.task_id }}
+  task-url:
+    description: 'URL to the created task (if web app is configured)'
+    value: ${{ steps.create-task.outputs.task_url }}
+  error-summary:
+    description: 'Brief summary of the captured error'
+    value: ${{ steps.parse-error.outputs.summary }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Collect job logs
+      id: collect-logs
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        echo "Collecting failed job logs..."
+        
+        # Get the current workflow run ID
+        RUN_ID="${{ github.run_id }}"
+        
+        # Try to get logs via GitHub API
+        if command -v gh &> /dev/null; then
+          # Get failed jobs
+          FAILED_JOBS=$(gh api repos/${{ github.repository }}/actions/runs/${RUN_ID}/jobs --jq '.jobs[] | select(.conclusion == "failure") | .id' 2>/dev/null || echo "")
+          
+          if [ -n "$FAILED_JOBS" ]; then
+            echo "Found failed jobs: $FAILED_JOBS"
+            
+            # Collect logs from failed jobs
+            LOG_CONTENT=""
+            for JOB_ID in $FAILED_JOBS; do
+              JOB_LOG=$(gh api repos/${{ github.repository }}/actions/jobs/${JOB_ID}/logs 2>/dev/null | tail -n ${{ inputs.max-log-lines }} || echo "")
+              LOG_CONTENT="${LOG_CONTENT}\n--- Job ${JOB_ID} ---\n${JOB_LOG}"
+            done
+            
+            # Save to file for parsing
+            echo -e "$LOG_CONTENT" > /tmp/job_logs.txt
+          fi
+        fi
+        
+        # Fallback: check for common error output files
+        if [ ! -s /tmp/job_logs.txt ]; then
+          echo "No job logs via API, checking common error files..."
+          
+          # Check for common test/build output files
+          for f in test-results.txt coverage/lcov.info junit.xml build.log npm-debug.log yarn-error.log; do
+            if [ -f "$f" ]; then
+              echo "Found: $f"
+              tail -n ${{ inputs.max-log-lines }} "$f" >> /tmp/job_logs.txt 2>/dev/null || true
+            fi
+          done
+        fi
+        
+        # If still empty, use job context
+        if [ ! -s /tmp/job_logs.txt ]; then
+          echo "Using workflow context as fallback..."
+          echo "Workflow: ${{ github.workflow }}" > /tmp/job_logs.txt
+          echo "Job: ${{ github.job }}" >> /tmp/job_logs.txt
+          echo "Event: ${{ github.event_name }}" >> /tmp/job_logs.txt
+          echo "Ref: ${{ github.ref }}" >> /tmp/job_logs.txt
+          echo "SHA: ${{ github.sha }}" >> /tmp/job_logs.txt
+          echo "" >> /tmp/job_logs.txt
+          echo "Additional context: ${{ inputs.error-context }}" >> /tmp/job_logs.txt
+        fi
+        
+        # Set output
+        echo "logs_collected=true" >> $GITHUB_OUTPUT
+
+    - name: Parse error output
+      id: parse-error
+      shell: bash
+      run: |
+        echo "Parsing error output..."
+        
+        LOG_FILE="/tmp/job_logs.txt"
+        
+        # Initialize variables
+        ERROR_TYPE="Build/Test Failure"
+        ERROR_SUMMARY=""
+        ERROR_FILE=""
+        ERROR_LINE=""
+        
+        # Detect failure type based on content
+        FAILURE_TYPES="${{ inputs.failure-types }}"
+        
+        if [ -f "$LOG_FILE" ]; then
+          LOG_CONTENT=$(cat "$LOG_FILE")
+          
+          # TypeScript errors
+          if echo "$LOG_CONTENT" | grep -q "error TS"; then
+            ERROR_TYPE="TypeScript Error"
+            # Extract first TS error
+            TS_ERROR=$(echo "$LOG_CONTENT" | grep -m1 "error TS[0-9]*:" || echo "")
+            if [ -n "$TS_ERROR" ]; then
+              ERROR_SUMMARY=$(echo "$TS_ERROR" | head -c 200)
+              # Extract file:line
+              FILE_LINE=$(echo "$LOG_CONTENT" | grep -oE "[^[:space:]]+\.tsx?:[0-9]+:[0-9]+" | head -1 || echo "")
+              if [ -n "$FILE_LINE" ]; then
+                ERROR_FILE=$(echo "$FILE_LINE" | cut -d: -f1)
+                ERROR_LINE=$(echo "$FILE_LINE" | cut -d: -f2)
+              fi
+            fi
+          
+          # ESLint errors
+          elif echo "$LOG_CONTENT" | grep -qE "(✖|error|warning).*eslint"; then
+            ERROR_TYPE="ESLint Error"
+            ERROR_SUMMARY=$(echo "$LOG_CONTENT" | grep -m1 "error" | head -c 200 || echo "Linting failed")
+          
+          # Jest/test failures
+          elif echo "$LOG_CONTENT" | grep -qE "(FAIL|✕|Test Suites:.*failed)"; then
+            ERROR_TYPE="Test Failure"
+            FAILED_TEST=$(echo "$LOG_CONTENT" | grep -m1 "FAIL\|✕" | head -c 200 || echo "")
+            ERROR_SUMMARY="${FAILED_TEST:-Tests failed}"
+          
+          # Python errors
+          elif echo "$LOG_CONTENT" | grep -qE "(Traceback|ModuleNotFoundError|ImportError|SyntaxError)"; then
+            ERROR_TYPE="Python Error"
+            PY_ERROR=$(echo "$LOG_CONTENT" | grep -A1 "Error:" | tail -1 | head -c 200 || echo "")
+            ERROR_SUMMARY="${PY_ERROR:-Python error occurred}"
+          
+          # Node.js errors
+          elif echo "$LOG_CONTENT" | grep -qE "(TypeError|ReferenceError|SyntaxError):"; then
+            ERROR_TYPE="JavaScript Error"
+            JS_ERROR=$(echo "$LOG_CONTENT" | grep -m1 "Error:" | head -c 200 || echo "")
+            ERROR_SUMMARY="${JS_ERROR:-JavaScript error occurred}"
+          
+          # npm/yarn errors
+          elif echo "$LOG_CONTENT" | grep -qE "(npm ERR!|error An unexpected error occurred)"; then
+            ERROR_TYPE="Package Manager Error"
+            ERROR_SUMMARY=$(echo "$LOG_CONTENT" | grep -m1 "ERR!\|error" | head -c 200 || echo "Package installation failed")
+          
+          # Build failures
+          elif echo "$LOG_CONTENT" | grep -qiE "(build failed|compilation failed|failed to compile)"; then
+            ERROR_TYPE="Build Failure"
+            ERROR_SUMMARY=$(echo "$LOG_CONTENT" | grep -im1 "failed\|error" | head -c 200 || echo "Build failed")
+          
+          # Generic error
+          else
+            ERROR_SUMMARY=$(echo "$LOG_CONTENT" | grep -im1 "error\|failed\|exception" | head -c 200 || echo "CI/CD pipeline failed")
+          fi
+        else
+          ERROR_SUMMARY="CI/CD pipeline failed - no detailed logs available"
+        fi
+        
+        # Sanitize for GitHub output
+        ERROR_SUMMARY=$(echo "$ERROR_SUMMARY" | tr '\n' ' ' | head -c 500)
+        
+        echo "error_type=${ERROR_TYPE}" >> $GITHUB_OUTPUT
+        echo "summary=${ERROR_SUMMARY}" >> $GITHUB_OUTPUT
+        echo "file=${ERROR_FILE}" >> $GITHUB_OUTPUT
+        echo "line=${ERROR_LINE}" >> $GITHUB_OUTPUT
+        
+        echo "Detected: ${ERROR_TYPE}"
+        echo "Summary: ${ERROR_SUMMARY}"
+
+    - name: Create VibeTasks task
+      id: create-task
+      shell: bash
+      env:
+        SUPABASE_URL: ${{ inputs.supabase-url }}
+        SUPABASE_KEY: ${{ inputs.supabase-service-key || inputs.supabase-anon-key }}
+        USER_ID: ${{ inputs.user-id }}
+      run: |
+        echo "Creating VibeTasks task..."
+        
+        # Prepare task data
+        PROJECT="${{ inputs.project-name }}"
+        if [ -z "$PROJECT" ]; then
+          PROJECT="${{ github.repository }}"
+          PROJECT="${PROJECT##*/}"  # Extract repo name only
+        fi
+        
+        ERROR_TYPE="${{ steps.parse-error.outputs.error_type }}"
+        ERROR_SUMMARY="${{ steps.parse-error.outputs.summary }}"
+        ERROR_FILE="${{ steps.parse-error.outputs.file }}"
+        ERROR_LINE="${{ steps.parse-error.outputs.line }}"
+        
+        # Build task title
+        TITLE="[CI] ${ERROR_TYPE}: ${ERROR_SUMMARY}"
+        TITLE=$(echo "$TITLE" | head -c 100)
+        
+        # Build task notes (markdown)
+        NOTES="## CI/CD Failure Report
+        
+        **Workflow:** ${{ github.workflow }}
+        **Job:** ${{ github.job }}
+        **Run:** [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        **Commit:** [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+        **Branch:** \`${{ github.ref_name }}\`
+        **Event:** ${{ github.event_name }}
+        **Triggered by:** @${{ github.actor }}
+        
+        ### Error Details
+        
+        **Type:** ${ERROR_TYPE}
+        **Summary:** ${ERROR_SUMMARY}"
+        
+        if [ -n "$ERROR_FILE" ]; then
+          NOTES="${NOTES}
+        **File:** \`${ERROR_FILE}\`"
+        fi
+        
+        if [ -n "$ERROR_LINE" ]; then
+          NOTES="${NOTES}
+        **Line:** ${ERROR_LINE}"
+        fi
+        
+        # Add log excerpt if available
+        if [ -f /tmp/job_logs.txt ] && [ -s /tmp/job_logs.txt ]; then
+          LOG_EXCERPT=$(cat /tmp/job_logs.txt | tail -n 50 | head -c 3000)
+          NOTES="${NOTES}
+        
+        ### Log Excerpt
+        
+        \`\`\`
+        ${LOG_EXCERPT}
+        \`\`\`"
+        fi
+        
+        # Add context if provided
+        if [ -n "${{ inputs.error-context }}" ]; then
+          NOTES="${NOTES}
+        
+        ### Additional Context
+        
+        ${{ inputs.error-context }}"
+        fi
+        
+        NOTES="${NOTES}
+        
+        ---
+        *Auto-generated by VibeTasks Error Capture*"
+        
+        # Build subtasks JSON
+        SUBTASKS='[
+          {"id": "'$(uuidgen || cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "1")'", "title": "Reproduce the error locally", "done": false},
+          {"id": "'$(uuidgen || cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "2")'", "title": "Identify root cause", "done": false},
+          {"id": "'$(uuidgen || cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "3")'", "title": "Implement fix", "done": false},
+          {"id": "'$(uuidgen || cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "4")'", "title": "Verify CI passes", "done": false}
+        ]'
+        
+        # Escape for JSON
+        TITLE_ESCAPED=$(echo "$TITLE" | sed 's/"/\\"/g' | sed 's/\\/\\\\/g')
+        NOTES_ESCAPED=$(echo "$NOTES" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+        
+        # Create task via Supabase REST API
+        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+          "${SUPABASE_URL}/rest/v1/tasks" \
+          -H "apikey: ${SUPABASE_KEY}" \
+          -H "Authorization: Bearer ${SUPABASE_KEY}" \
+          -H "Content-Type: application/json" \
+          -H "Prefer: return=representation" \
+          -d "{
+            \"user_id\": \"${USER_ID}\",
+            \"title\": \"${TITLE_ESCAPED}\",
+            \"notes\": \"${NOTES_ESCAPED}\",
+            \"notes_format\": \"markdown\",
+            \"priority\": \"${{ inputs.priority }}\",
+            \"status\": \"todo\",
+            \"project_tag\": \"${PROJECT}\",
+            \"created_by\": \"ai\",
+            \"subtasks_json\": ${SUBTASKS}
+          }")
+        
+        # Parse response
+        HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+        BODY=$(echo "$RESPONSE" | sed '$d')
+        
+        if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
+          TASK_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+          echo "Task created successfully: ${TASK_ID}"
+          echo "task_id=${TASK_ID}" >> $GITHUB_OUTPUT
+          echo "task_url=${SUPABASE_URL//.supabase.co/}/tasks/${TASK_ID}" >> $GITHUB_OUTPUT
+          echo "success=true" >> $GITHUB_OUTPUT
+        else
+          echo "Failed to create task. HTTP ${HTTP_CODE}"
+          echo "Response: $BODY"
+          echo "success=false" >> $GITHUB_OUTPUT
+          echo "task_id=" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+    - name: Add tags to task
+      if: steps.create-task.outputs.success == 'true' && inputs.tags != ''
+      shell: bash
+      env:
+        SUPABASE_URL: ${{ inputs.supabase-url }}
+        SUPABASE_KEY: ${{ inputs.supabase-service-key || inputs.supabase-anon-key }}
+        USER_ID: ${{ inputs.user-id }}
+      run: |
+        TASK_ID="${{ steps.create-task.outputs.task_id }}"
+        IFS=',' read -ra TAGS <<< "${{ inputs.tags }}"
+        
+        for TAG_NAME in "${TAGS[@]}"; do
+          TAG_NAME=$(echo "$TAG_NAME" | xargs)  # Trim whitespace
+          
+          if [ -n "$TAG_NAME" ]; then
+            echo "Processing tag: ${TAG_NAME}"
+            
+            # Check if tag exists
+            TAG_RESPONSE=$(curl -s -X GET \
+              "${SUPABASE_URL}/rest/v1/tags?name=eq.${TAG_NAME}&user_id=eq.${USER_ID}" \
+              -H "apikey: ${SUPABASE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_KEY}")
+            
+            TAG_ID=$(echo "$TAG_RESPONSE" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+            
+            # Create tag if it doesn't exist
+            if [ -z "$TAG_ID" ]; then
+              echo "Creating tag: ${TAG_NAME}"
+              TAG_CREATE=$(curl -s -X POST \
+                "${SUPABASE_URL}/rest/v1/tags" \
+                -H "apikey: ${SUPABASE_KEY}" \
+                -H "Authorization: Bearer ${SUPABASE_KEY}" \
+                -H "Content-Type: application/json" \
+                -H "Prefer: return=representation" \
+                -d "{
+                  \"user_id\": \"${USER_ID}\",
+                  \"name\": \"${TAG_NAME}\",
+                  \"color\": \"#6366f1\"
+                }")
+              TAG_ID=$(echo "$TAG_CREATE" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+            fi
+            
+            # Link tag to task
+            if [ -n "$TAG_ID" ]; then
+              echo "Linking tag ${TAG_NAME} to task"
+              curl -s -X POST \
+                "${SUPABASE_URL}/rest/v1/task_tags" \
+                -H "apikey: ${SUPABASE_KEY}" \
+                -H "Authorization: Bearer ${SUPABASE_KEY}" \
+                -H "Content-Type: application/json" \
+                -d "{
+                  \"task_id\": \"${TASK_ID}\",
+                  \"tag_id\": \"${TAG_ID}\"
+                }" || true
+            fi
+          fi
+        done
+
+    - name: Comment on PR
+      if: steps.create-task.outputs.success == 'true' && inputs.comment-on-pr == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        TASK_ID="${{ steps.create-task.outputs.task_id }}"
+        ERROR_TYPE="${{ steps.parse-error.outputs.error_type }}"
+        ERROR_SUMMARY="${{ steps.parse-error.outputs.summary }}"
+        
+        COMMENT_BODY="## VibeTasks Error Captured
+        
+        A task has been created to track this CI/CD failure.
+        
+        **Error Type:** ${ERROR_TYPE}
+        **Summary:** ${ERROR_SUMMARY}
+        
+        **Task ID:** \`${TASK_ID}\`
+        
+        ---
+        *[View workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*"
+        
+        gh pr comment ${{ github.event.pull_request.number }} --body "$COMMENT_BODY" || echo "Could not comment on PR"

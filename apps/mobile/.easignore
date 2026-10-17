@@ -1,0 +1,34 @@
+# EAS Build ignore file
+# Files and folders to exclude from cloud builds
+
+# Development files
+.git
+.github
+.vscode
+.idea
+
+# Documentation
+*.md
+!README.md
+
+# Local secrets (should use EAS secrets instead)
+secrets/
+.env.local
+.env.*.local
+
+# Build artifacts
+builds/
+ios/
+android/
+
+# Test files
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log

@@ -1,0 +1,405 @@
+/**
+ * Settings Page
+ * App configuration and integrations
+ */
+
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Calendar, LogOut, Trash2, Sun, Moon, Monitor, Terminal, Code, CheckCircle2, Circle, Loader2 } from 'lucide-react';
+import { useAuthStore } from '@/lib/stores/auth-store';
+import { useThemeStore } from '@/lib/stores/theme-store';
+import { useRouter } from 'next/navigation';
+
+export default function SettingsPage() {
+  const router = useRouter();
+  const { user, signOut } = useAuthStore();
+  const { mode, setMode } = useThemeStore();
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+
+  // Setup progress tracking
+  const [setupProgress, setSetupProgress] = useState({
+    cliInstalled: false,
+    cliAuthenticated: false,
+    mcpBuilt: false,
+    mcpConfigured: false,
+    hooksInstalled: false,
+  });
+
+  const setupSteps = [
+    { id: 'cli', title: 'CLI Installation', completed: setupProgress.cliInstalled, total: 5 },
+    { id: 'mcp', title: 'MCP Server', completed: setupProgress.mcpBuilt && setupProgress.mcpConfigured, total: 6 },
+    { id: 'hooks', title: 'Git Hooks', completed: setupProgress.hooksInstalled, total: 3 },
+  ];
+
+  const totalCompleted = Object.values(setupProgress).filter(Boolean).length;
+  const totalSteps = Object.keys(setupProgress).length;
+
+  const handleGoogleCalendarConnect = async () => {
+    setIsConnecting(true);
+    try {
+      // OAuth flow for Google Calendar
+      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+      const redirectUri = `${window.location.origin}/auth/google-calendar/callback`;
+      const scope = 'https://www.googleapis.com/auth/calendar';
+
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
+        client_id: clientId!,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope,
+        access_type: 'offline',
+        prompt: 'consent',
+      })}`;
+
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Failed to connect Google Calendar:', error);
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnect = () => {
+    // TODO: Implement disconnect logic
+    setIsConnected(false);
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    router.push('/login');
+  };
+
+  const handleDeleteAccount = async () => {
+    if (confirm('Are you sure you want to delete your account? This cannot be undone.')) {
+      // TODO: Implement account deletion
+      alert('Account deletion coming soon');
+    }
+  };
+
+  return (
+    <div className="container max-w-4xl py-8 px-6 space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold">Settings</h1>
+        <p className="text-muted-foreground">Manage your account and preferences</p>
+      </div>
+
+      {/* Account */}
+      <Card className="p-6">
+        <h2 className="text-lg font-semibold mb-4">Account</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-muted-foreground">Email</label>
+            <p className="text-sm">{user?.email}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-muted-foreground">User ID</label>
+            <p className="text-sm font-mono text-xs">{user?.id}</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Appearance */}
+      <Card className="p-6">
+        <h2 className="text-lg font-semibold mb-4">Appearance</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium">Theme</label>
+            <p className="text-sm text-muted-foreground mb-3">
+              Choose how TaskFlow looks to you
+            </p>
+            <div className="grid gap-3">
+              {[
+                { value: 'light', label: 'Light', icon: Sun, desc: 'Always use light theme' },
+                { value: 'dark', label: 'Dark', icon: Moon, desc: 'Always use dark theme' },
+                { value: 'system', label: 'System', icon: Monitor, desc: 'Match system settings' },
+              ].map((option) => {
+                const Icon = option.icon;
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => setMode(option.value as any)}
+                    className={`flex items-center gap-3 p-4 border rounded-lg text-left transition-all ${
+                      mode === option.value
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <div className="flex-1">
+                      <p className="font-medium">{option.label}</p>
+                      <p className="text-sm text-muted-foreground">{option.desc}</p>
+                    </div>
+                    {mode === option.value && (
+                      <div className="h-2 w-2 rounded-full bg-primary" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Integrations */}
+      <Card className="p-6">
+        <h2 className="text-lg font-semibold mb-4">Integrations</h2>
+        <div className="space-y-4">
+          {/* Google Calendar */}
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="flex items-center gap-3">
+              <Calendar className="h-5 w-5 text-blue-500" />
+              <div>
+                <p className="font-medium">Google Calendar</p>
+                <p className="text-sm text-muted-foreground">
+                  {isConnected ? 'Connected' : 'Sync your tasks with Google Calendar'}
+                </p>
+              </div>
+            </div>
+            {isConnected ? (
+              <Button variant="outline" size="sm" onClick={handleDisconnect}>
+                Disconnect
+              </Button>
+            ) : (
+              <Button size="sm" onClick={handleGoogleCalendarConnect} disabled={isConnecting}>
+                {isConnecting ? 'Connecting...' : 'Connect'}
+              </Button>
+            )}
+          </div>
+
+          {/* Coming Soon: Other Integrations */}
+          <div className="flex items-center justify-between p-4 border rounded-lg opacity-50">
+            <div className="flex items-center gap-3">
+              <Calendar className="h-5 w-5" />
+              <div>
+                <p className="font-medium">Outlook Calendar</p>
+                <p className="text-sm text-muted-foreground">Coming soon</p>
+              </div>
+            </div>
+            <Button size="sm" disabled>
+              Coming Soon
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Developer Setup */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold">Developer Setup</h2>
+            <p className="text-sm text-muted-foreground">CLI + MCP Server for AI coding tools</p>
+          </div>
+          <div className="text-sm font-medium text-muted-foreground">
+            {totalCompleted} of {totalSteps} steps
+          </div>
+        </div>
+
+        {/* Progress Overview */}
+        <div className="mb-6 space-y-2">
+          {setupSteps.map((step) => (
+            <div key={step.id} className="flex items-center gap-3">
+              {step.completed ? (
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+              ) : (
+                <Circle className="h-4 w-4 text-muted-foreground" />
+              )}
+              <span className={step.completed ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}>
+                {step.title}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Setup Sections */}
+        <div className="space-y-4">
+          {/* CLI Installation */}
+          <details className="group border rounded-lg p-4">
+            <summary className="cursor-pointer flex items-center justify-between font-medium">
+              <div className="flex items-center gap-2">
+                <Terminal className="h-5 w-5" />
+                <span>1. CLI Installation & Authentication</span>
+              </div>
+              <div className="text-sm text-muted-foreground">2 of 5 steps</div>
+            </summary>
+            <div className="mt-4 space-y-4 pl-7">
+              {/* Step 1: Install CLI */}
+              <div className="border-l-2 border-primary/20 pl-4 py-2">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+                        1
+                      </div>
+                      <span className="font-medium">Install CLI Globally</span>
+                      <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                        AI
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      AI installs and links CLI globally
+                    </p>
+                    <div className="bg-muted/50 rounded p-3 text-sm font-mono">
+                      Navigate to packages/cli<br />
+                      Run: npm link<br />
+                      Verify: taskflow --version
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2: Get Supabase Key */}
+              <div className="border-l-2 border-muted pl-4 py-2">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
+                        2
+                      </div>
+                      <span className="font-medium">Get Supabase Anon Key</span>
+                      <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">
+                        YOU
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Copy your Supabase anon key
+                    </p>
+                    <ol className="text-sm space-y-1 list-decimal list-inside text-muted-foreground">
+                      <li>Go to Supabase Dashboard → API Settings</li>
+                      <li>Copy the <code className="text-xs bg-muted px-1 py-0.5 rounded">anon</code> public key</li>
+                      <li>Keep it handy for the next step</li>
+                    </ol>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-3"
+                      onClick={() => window.open('https://supabase.com/dashboard/project/cbkkztbcoitrfcleghfd/settings/api', '_blank')}
+                    >
+                      Open Supabase API Settings →
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3: Authenticate */}
+              <div className="border-l-2 border-muted pl-4 py-2">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
+                        3
+                      </div>
+                      <span className="font-medium">Authenticate with TaskFlow</span>
+                      <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                        AI
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      AI runs login command for you
+                    </p>
+                    <div className="bg-muted/50 rounded p-3 text-sm font-mono">
+                      Run: taskflow login<br />
+                      Enter your email and password<br />
+                      Verify: taskflow config
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* More steps collapsed for brevity */}
+              <div className="text-sm text-muted-foreground">
+                + 2 more steps (Test CLI, Set Supabase Key)
+              </div>
+            </div>
+          </details>
+
+          {/* MCP Server */}
+          <details className="group border rounded-lg p-4">
+            <summary className="cursor-pointer flex items-center justify-between font-medium">
+              <div className="flex items-center gap-2">
+                <Code className="h-5 w-5" />
+                <span>2. MCP Server for AI Tools</span>
+              </div>
+              <div className="text-sm text-muted-foreground">0 of 6 steps</div>
+            </summary>
+            <div className="mt-4 space-y-4 pl-7">
+              <div className="text-sm text-muted-foreground">
+                Integrates TaskFlow with Claude Code, Cursor, and other AI coding tools.
+              </div>
+              <Button variant="outline" size="sm" onClick={() => window.open('/docs/setup#mcp-server', '_blank')}>
+                View Full Guide →
+              </Button>
+            </div>
+          </details>
+
+          {/* Git Hooks */}
+          <details className="group border rounded-lg p-4">
+            <summary className="cursor-pointer flex items-center justify-between font-medium">
+              <div className="flex items-center gap-2">
+                <Terminal className="h-5 w-5" />
+                <span>3. Git Hooks (Optional)</span>
+              </div>
+              <div className="text-sm text-muted-foreground">0 of 3 steps</div>
+            </summary>
+            <div className="mt-4 space-y-4 pl-7">
+              <div className="text-sm text-muted-foreground">
+                Automatically update tasks from git commits using conventional commit format.
+              </div>
+              <Button variant="outline" size="sm" onClick={() => window.open('/docs/setup#git-hooks', '_blank')}>
+                View Full Guide →
+              </Button>
+            </div>
+          </details>
+        </div>
+
+        {/* Quick Links */}
+        <div className="mt-6 pt-6 border-t">
+          <p className="text-sm font-medium mb-3">Documentation</p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => window.open('/docs/SETUP_GUIDE.md', '_blank')}>
+              Complete Setup Guide
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.open('/docs/TASKFLOW_MCP_GUIDE.md', '_blank')}>
+              MCP Integration Guide
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.open('/packages/cli/README.md', '_blank')}>
+              CLI Documentation
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Danger Zone */}
+      <Card className="p-6 border-destructive">
+        <h2 className="text-lg font-semibold mb-4 text-destructive">Danger Zone</h2>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Log Out</p>
+              <p className="text-sm text-muted-foreground">Sign out of your account</p>
+            </div>
+            <Button variant="outline" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Log Out
+            </Button>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Delete Account</p>
+              <p className="text-sm text-muted-foreground">
+                Permanently delete your account and all data
+              </p>
+            </div>
+            <Button variant="destructive" onClick={handleDeleteAccount}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Account
+            </Button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
